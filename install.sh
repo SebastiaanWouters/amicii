@@ -160,7 +160,7 @@ print_summary() {
     echo "Database: ~/.amicii/storage.sqlite"
     echo
     echo "Quick start:"
-    echo "  am serve --daemon    # Start server"
+    echo "  am serve             # Start server"
     echo "  am agent register    # Get agent identity"
     echo "  am inbox             # Check messages"
     echo "  am --help            # Show all commands"

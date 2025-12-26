@@ -10,6 +10,12 @@ Lightweight agent coordination server. CLI-first messaging and file reservations
 curl -fsSL https://raw.githubusercontent.com/sebastiaanwouters/amicii/main/install.sh | bash
 ```
 
+Installs to:
+- Binary: `~/.local/bin/am`
+- Data: `~/.local/share/amicii`
+- Config: `~/.amicii/config.json`
+- Database: `~/.amicii/storage.sqlite`
+
 ### Manual
 
 ```bash
@@ -26,7 +32,7 @@ bun link  # Creates global `am` command
 ## Quick Start
 
 ```bash
-# Start server (in tmux or screen for background)
+# Start server
 am serve
 
 # Register agent identity
@@ -59,7 +65,6 @@ Config file: `~/.amicii/config.json`
 
 Data stored in:
 - Database: `~/.amicii/storage.sqlite`
-- PID file: `~/.amicii/amicii.pid`
 - Log file: `~/.amicii/amicii.log`
 
 ## Commands
@@ -68,8 +73,8 @@ Data stored in:
 
 | Command | Description |
 |---------|-------------|
-| `am serve [--port N]` | Start server (manage with tmux/systemd) |
-| `am stop` | Stop server by PID |
+| `am serve [--port N]` | Start server |
+| `am stop` | Stop server |
 | `am status` | Server status and stats |
 
 ### Project
