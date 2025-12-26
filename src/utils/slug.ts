@@ -1,6 +1,5 @@
 /**
  * Create a URL-safe slug from a path or string.
- * Matches mcp_agent_mail's slugify behavior.
  */
 export function slugify(input: string): string {
   return input

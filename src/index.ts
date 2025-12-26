@@ -19,73 +19,44 @@ import type {
 const VERSION = "0.1.0";
 
 function usage(): void {
-  console.log(`
-Amicii v${VERSION} - Agent Coordination Server
+  console.log(`Amicii v${VERSION} - Agent Coordination CLI
 
 Usage: am <command> [options]
 
-Server:
-  serve [--port N]              Start server (manage with tmux/systemd)
-  stop                          Stop server by PID
-  status                        Server status and stats
+Global:
+  --json                        Output JSON (for AI agents)
+  --help, -h                    Show help
 
-Project:
-  project ensure [path]         Create/ensure project (default: pwd)
-  project list                  List all projects
-  project info [path]           Show project details
+Server:
+  serve [--port N]              Start server (foreground)
+  stop                          Stop server
+  status [--json]               Server status
 
 Agent:
-  agent register [options]      Register agent identity
-    --name <hint>               Name hint (auto-generated if invalid)
-    --program <name>            Program name (e.g., claude, codex)
-    --model <name>              Model name (e.g., opus, o3)
-    --task <description>        Task description
-  agent whois <name>            Get agent profile
-  agent list                    List agents in project
+  agent register [--program X] [--model Y]    Register identity
+  agent list [--json]                         List agents
+  agent whois <name> [--json]                 Get agent info
 
 Messaging:
-  send [options]                Send a message
-    --to <agent>[,...]          Recipients (use "all" for broadcast)
-    --cc <agent>[,...]          CC recipients
-    --subject <text>            Subject line (required)
-    --body <text>               Message body
-    --body-file <path>          Read body from file
-    --thread <id>               Thread ID (e.g., bd-123)
-    --urgent                    Mark as urgent
-    --ack                       Request acknowledgement
-  inbox [options]               View inbox
-    --limit <n>                 Limit results (default: 20)
-    --urgent                    Only urgent messages
-    --unread                    Only unread messages
-    --since <iso>               Messages since timestamp
-  outbox [--limit N]            View sent messages
-  read <message-id>             Mark message as read and display
-  ack <message-id>              Acknowledge message
+  send --to <agent> --subject <text> [--body <text>] [--thread <id>]
+  inbox [--unread] [--json]     View inbox
+  read <id> [--json]            Read message
+  ack <id>                      Acknowledge message
 
-File Reservations:
-  reserve <pattern> [options]   Reserve files
-    --ttl <seconds>             TTL in seconds (default: 3600)
-    --reason <text>             Reason (e.g., bd-123)
-    --shared                    Shared (non-exclusive) reservation
-  release [pattern] [--all]     Release reservations
-  reservations [--active]       List reservations
+Reservations:
+  reserve <pattern> --reason <id>   Reserve files
+  release [--all]                   Release reservations
+  reservations [--active] [--json]  List reservations
 
 Search:
-  search <query> [--limit N]    Search messages
-
-Config:
-  config                        Show current config
-  config set <key> <value>      Set config value (port, retention_days)
-
-Prune:
-  prune [--dry-run]             Run retention cleanup
+  search <query> [--json]       Search messages
 
 Examples:
-  am serve                      Start server (use tmux for background)
-  am agent register --program claude --model opus
-  am send --to GreenLake --subject "Starting work" --body "On it!"
-  am inbox --unread
+  am status --json
+  am agent register --program opencode --model claude
   am reserve "src/**" --reason bd-42
+  am send --to all --subject "[bd-42] Starting" --thread bd-42
+  am inbox --unread
   am release --all
 `);
 }
@@ -159,22 +130,28 @@ async function main(): Promise<void> {
     case "status": {
       const { running, pid } = isDaemonRunning();
       if (!running) {
-        console.log("Server: not running");
-        console.log(`Config: ${paths.config}`);
-        console.log(`Database: ${paths.db}`);
+        if (flags.json) {
+          printJson({ running: false });
+        } else {
+          console.log("Server: not running");
+        }
         return;
       }
 
       const result = await apiRequest<ServerStatus>("GET", "/api/status");
       if (result.ok) {
-        console.log(`Server: running (PID: ${pid})`);
-        console.log(`Version: ${result.value.version}`);
-        console.log(`Uptime: ${result.value.uptime_seconds}s`);
-        console.log(`Projects: ${result.value.projects_count}`);
-        console.log(`Agents: ${result.value.agents_count}`);
-        console.log(`Messages: ${result.value.messages_count}`);
-        console.log(`Active reservations: ${result.value.reservations_active}`);
-        console.log(`Retention: ${result.value.retention_days} days`);
+        if (flags.json) {
+          printJson({ running: true, pid, ...result.value });
+        } else {
+          console.log(`Server: running (PID: ${pid})`);
+          console.log(`Version: ${result.value.version}`);
+          console.log(`Uptime: ${result.value.uptime_seconds}s`);
+          console.log(`Projects: ${result.value.projects_count}`);
+          console.log(`Agents: ${result.value.agents_count}`);
+          console.log(`Messages: ${result.value.messages_count}`);
+          console.log(`Active reservations: ${result.value.reservations_active}`);
+          console.log(`Retention: ${result.value.retention_days} days`);
+        }
       } else {
         printError(result.error.message);
       }
@@ -273,12 +250,16 @@ async function main(): Promise<void> {
         }
         const result = await apiRequest<Agent[]>("GET", "/api/agents", undefined, { project: projectResult.value.slug });
         if (result.ok) {
-          printTable(result.value, [
-            { key: "name", label: "Name", width: 20 },
-            { key: "program", label: "Program", width: 15 },
-            { key: "model", label: "Model", width: 15 },
-            { key: "last_active_ts", label: "Last Active", width: 20 },
-          ]);
+          if (flags.json) {
+            printJson(result.value);
+          } else {
+            printTable(result.value, [
+              { key: "name", label: "Name", width: 20 },
+              { key: "program", label: "Program", width: 15 },
+              { key: "model", label: "Model", width: 15 },
+              { key: "last_active_ts", label: "Last Active", width: 20 },
+            ]);
+          }
         } else {
           printError(result.error.message);
         }
@@ -374,15 +355,17 @@ async function main(): Promise<void> {
       });
 
       if (result.ok) {
-        if (result.value.length === 0) {
+        if (flags.json) {
+          printJson(result.value);
+        } else if (result.value.length === 0) {
           console.log("(no messages)");
-          return;
-        }
-        for (const msg of result.value) {
-          const read = msg.read_ts ? " " : "*";
-          const ack = msg.ack_required && !msg.ack_ts ? "[ACK]" : "";
-          const imp = msg.importance === "urgent" ? "[!]" : msg.importance === "high" ? "[H]" : "";
-          console.log(`${read} #${msg.id} ${imp}${ack} ${msg.sender_name}: ${truncate(msg.subject, 50)} (${formatTime(msg.created_ts)})`);
+        } else {
+          for (const msg of result.value) {
+            const read = msg.read_ts ? " " : "*";
+            const ack = msg.ack_required && !msg.ack_ts ? "[ACK]" : "";
+            const imp = msg.importance === "urgent" ? "[!]" : msg.importance === "high" ? "[H]" : "";
+            console.log(`${read} #${msg.id} ${imp}${ack} ${msg.sender_name}: ${truncate(msg.subject, 50)} (${formatTime(msg.created_ts)})`);
+          }
         }
       } else {
         printError(result.error.message);
@@ -460,14 +443,18 @@ async function main(): Promise<void> {
       }
 
       const msg = msgResult.value;
-      console.log(`From: ${msg.sender_name}`);
-      console.log(`To: ${msg.to_agents}`);
-      if (msg.cc_agents) console.log(`CC: ${msg.cc_agents}`);
-      console.log(`Subject: ${msg.subject}`);
-      console.log(`Date: ${msg.created_ts}`);
-      if (msg.thread_id) console.log(`Thread: ${msg.thread_id}`);
-      console.log(`---`);
-      console.log(msg.body_md);
+      if (flags.json) {
+        printJson(msg);
+      } else {
+        console.log(`From: ${msg.sender_name}`);
+        console.log(`To: ${msg.to_agents}`);
+        if (msg.cc_agents) console.log(`CC: ${msg.cc_agents}`);
+        console.log(`Subject: ${msg.subject}`);
+        console.log(`Date: ${msg.created_ts}`);
+        if (msg.thread_id) console.log(`Thread: ${msg.thread_id}`);
+        console.log(`---`);
+        console.log(msg.body_md);
+      }
       break;
     }
 
@@ -601,13 +588,17 @@ async function main(): Promise<void> {
       });
 
       if (result.ok) {
-        printTable(result.value, [
-          { key: "id", label: "ID", width: 6 },
-          { key: "agent_name", label: "Agent", width: 15 },
-          { key: "path_pattern", label: "Pattern", width: 30 },
-          { key: "reason", label: "Reason", width: 15 },
-          { key: "expires_ts", label: "Expires", width: 20 },
-        ]);
+        if (flags.json) {
+          printJson(result.value);
+        } else {
+          printTable(result.value, [
+            { key: "id", label: "ID", width: 6 },
+            { key: "agent_name", label: "Agent", width: 15 },
+            { key: "path_pattern", label: "Pattern", width: 30 },
+            { key: "reason", label: "Reason", width: 15 },
+            { key: "expires_ts", label: "Expires", width: 20 },
+          ]);
+        }
       } else {
         printError(result.error.message);
       }
@@ -638,12 +629,14 @@ async function main(): Promise<void> {
       });
 
       if (result.ok) {
-        if (result.value.length === 0) {
+        if (flags.json) {
+          printJson(result.value);
+        } else if (result.value.length === 0) {
           console.log("(no results)");
-          return;
-        }
-        for (const msg of result.value) {
-          console.log(`#${msg.id} ${msg.sender_name}: ${truncate(msg.subject, 50)} (${formatTime(msg.created_ts)})`);
+        } else {
+          for (const msg of result.value) {
+            console.log(`#${msg.id} ${msg.sender_name}: ${truncate(msg.subject, 50)} (${formatTime(msg.created_ts)})`);
+          }
         }
       } else {
         printError(result.error.message);

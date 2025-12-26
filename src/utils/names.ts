@@ -1,6 +1,6 @@
 /**
  * Adjective + Noun name generator for agent identities.
- * Matches mcp_agent_mail's naming convention.
+ * e.g. BlueWave, GhostRidge, DeepDelta
  */
 
 const ADJECTIVES = [

@@ -199,54 +199,56 @@ am send --to all --subject "[bd-42] Done" --thread bd-42
 Add this to your project's AGENTS.md:
 
 ```markdown
-## Amicii: Agent Coordination
+## Amicii: Multi-Agent Coordination
 
-Lightweight CLI for agent messaging and file reservations. Optimized for beads/bv workflows.
+Use `am` CLI for agent-to-agent messaging and file reservations when collaborating with other agents on beads.
 
-### Setup
+### Prerequisites
+Check if amicii server is running before using any `am` commands:
 \`\`\`bash
-am serve            # Start server (run in tmux for background)
-am agent register   # Get identity per project
+am status --json
+\`\`\`
+If `running: false`, skip all `am` commands - they are optional coordination aids.
+
+### CLI Reference (`am --help`)
+\`\`\`
+am status [--json]                   Check server status
+am agent register --program X --model Y
+am inbox [--unread] [--json]         Check messages
+am send --to <agent|all> --subject <text> [--body <text>] [--thread <id>]
+am read <id> [--json]                Read message
+am ack <id>                          Acknowledge message
+am reserve <pattern> --reason <id>   Reserve files (advisory)
+am release [--all]                   Release reservations
+am reservations [--active] [--json]  List reservations
+am search <query> [--json]           Search messages
 \`\`\`
 
-### Beads Workflow
+### Bead Workflow
+
+#### Starting a bead
 \`\`\`bash
-# 1. Pick task
-bd ready --json | jq -r '.[0].id'     # → bd-42
+am reserve "src/**" --reason <bead-id>
+am send --to all --subject "[<bead-id>] Starting" --body "<description>" --thread <bead-id>
+\`\`\`
 
-# 2. Reserve + announce
-am reserve "src/**" --reason bd-42
-am send --to all --subject "[bd-42] Starting" --thread bd-42
+#### During work
+\`\`\`bash
+am inbox --unread          # Check for messages
+am ack <id>                # Acknowledge if requested
+\`\`\`
 
-# 3. Work... check inbox periodically
-am inbox --unread
-
-# 4. Complete
-bd close bd-42
+#### Completing a bead
+\`\`\`bash
 am release --all
-am send --to all --subject "[bd-42] Done" --thread bd-42
+am send --to all --subject "[<bead-id>] Done" --thread <bead-id>
 \`\`\`
 
-### Commands
-| Command | Purpose |
-|---------|---------|
-| `am inbox` | Check messages |
-| `am send --to X --subject Y` | Send message |
-| `am reserve <pattern>` | Reserve files (advisory) |
-| `am release` | Release reservations |
-| `am ack <id>` | Acknowledge message |
-
-### File Reservations
-- Advisory locks signaling intent
-- Use `--reason bd-###` for beads tasks
-- Default TTL: 1 hour
-- Conflicts reported when overlapping exclusive reservations exist
-
-### With bv
-\`\`\`bash
-bv --robot-priority   # Task recommendations
-bv --robot-plan       # Parallel tracks
-\`\`\`
+### Notes
+- Use `--json` flag for machine-readable output
+- File reservations are advisory (signal intent, not enforced)
+- Use bead ID as `--reason` and `--thread` for traceability
+- Default reservation TTL: 1 hour
 ```
 
 ## License

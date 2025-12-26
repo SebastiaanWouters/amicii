@@ -8,6 +8,3 @@ data/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
-
-# Reference implementation (not part of this project)
-mcp_agent_mail/
