@@ -1,0 +1,19 @@
+{
+  "name": "amicii",
+  "version": "0.1.0",
+  "description": "Lightweight agent coordination server - CLI-first messaging and file reservations",
+  "type": "module",
+  "bin": {
+    "am": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "start": "bun run src/index.ts serve",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.2"
+  }
+}
